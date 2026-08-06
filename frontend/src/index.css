@@ -37,3 +37,42 @@ body {
   min-height: 100vh;
   background-color: var(--bg);
 }
+
+#root {
+  min-height: 100vh;
+}
+
+/* Shared button styles, used by UploadCard and Home. */
+.button {
+  padding: 0.6rem 1.1rem;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: var(--accent);
+  color: #fff;
+  font-size: 0.875rem;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.button:hover:not(:disabled) {
+  background: var(--accent-strong);
+}
+
+.button:disabled {
+  background: var(--border-strong);
+  color: var(--text-muted);
+  cursor: not-allowed;
+}
+
+.button--ghost {
+  background: transparent;
+  border-color: currentColor;
+  color: inherit;
+  padding: 0.4rem 0.9rem;
+}
+
+.button--ghost:hover:not(:disabled) {
+  background: rgba(180, 35, 24, 0.08);
+}

@@ -4,6 +4,10 @@ async function readError(response, fallback) {
   try {
     const data = await response.json()
     if (typeof data.detail === 'string') return data.detail
+    // FastAPI request-validation errors arrive as an array of issues.
+    if (Array.isArray(data.detail) && data.detail.length > 0) {
+      return data.detail.map((issue) => issue.msg).join('; ')
+    }
   } catch {
     // Response had no JSON body; fall through to the default message.
   }
@@ -34,4 +38,18 @@ export async function uploadPaper(file) {
   return response.json()
 }
 
-export { API_BASE_URL }
+export async function generateSummary({ filename, pages }) {
+  const response = await fetch(`${API_BASE_URL}/summary`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ filename, pages }),
+  })
+
+  if (!response.ok) {
+    throw new Error(
+      await readError(response, 'Summary generation failed. Please try again.'),
+    )
+  }
+
+  return response.json()
+}

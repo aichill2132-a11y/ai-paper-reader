@@ -57,6 +57,40 @@
   background: var(--danger-bg);
   border-color: var(--danger-border);
   color: var(--danger);
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.panel__message {
+  flex: 1 1 16rem;
+}
+
+.summary-launcher {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+  padding: 1.15rem 1.25rem;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface);
+  box-shadow: var(--shadow);
+}
+
+.summary-launcher__title {
+  margin: 0 0 0.25rem;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.summary-launcher__hint {
+  margin: 0;
+  font-size: 0.8125rem;
+  color: var(--text-muted);
 }
 
 .spinner {

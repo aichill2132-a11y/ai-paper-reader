@@ -1,13 +1,23 @@
+import logging
+from typing import Any, Dict
+
 import fitz  # PyMuPDF
 from fastapi import FastAPI, File, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 
+from config import OLLAMA_MODEL
+from ollama_client import OllamaError
+from schemas import SummaryRequest, SummaryResponse
+from summarizer import summarize_paper
+
 MAX_FILE_SIZE = 20 * 1024 * 1024  # 20 MB
 PREVIEW_LENGTH = 3000
 
+logging.basicConfig(level=logging.INFO)
+
 app = FastAPI(
     title="AI Paper Reader API",
-    version="0.1.0",
+    version="0.2.0",
 )
 
 app.add_middleware(
@@ -20,17 +30,17 @@ app.add_middleware(
 
 
 @app.get("/")
-def root() -> dict[str, str]:
+def root() -> Dict[str, str]:
     return {"message": "AI Paper Reader API is running"}
 
 
 @app.get("/health")
-def health_check() -> dict[str, str]:
+def health_check() -> Dict[str, str]:
     return {"status": "healthy"}
 
 
 @app.post("/upload")
-async def upload_paper(file: UploadFile = File(...)) -> dict:
+async def upload_paper(file: UploadFile = File(...)) -> Dict[str, Any]:
     filename = file.filename or ""
 
     # Accept PDFs only.
@@ -91,3 +101,31 @@ async def upload_paper(file: UploadFile = File(...)) -> dict:
         "text_preview": full_text[:PREVIEW_LENGTH],
         "pages": pages,
     }
+
+
+@app.post("/summary", response_model=SummaryResponse)
+async def summarize(request: SummaryRequest) -> SummaryResponse:
+    if not request.pages:
+        raise HTTPException(
+            status_code=400,
+            detail="No pages were supplied. Upload a paper first.",
+        )
+
+    if not any(page.text.strip() for page in request.pages):
+        raise HTTPException(
+            status_code=422,
+            detail="The supplied pages contain no extractable text to summarise.",
+        )
+
+    try:
+        summary, chunk_count = await summarize_paper(request.filename, request.pages)
+    except OllamaError as error:
+        raise HTTPException(status_code=error.status_code, detail=error.message)
+
+    return SummaryResponse(
+        filename=request.filename,
+        model=OLLAMA_MODEL,
+        page_count=max(page.page_number for page in request.pages),
+        chunk_count=chunk_count,
+        summary=summary,
+    )

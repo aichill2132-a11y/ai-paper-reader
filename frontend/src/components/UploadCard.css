@@ -92,26 +92,3 @@
 .upload-card__empty {
   color: var(--text-muted);
 }
-
-.button {
-  padding: 0.6rem 1.1rem;
-  border: 1px solid transparent;
-  border-radius: 8px;
-  background: var(--accent);
-  color: #fff;
-  font-size: 0.875rem;
-  font-weight: 600;
-  font-family: inherit;
-  cursor: pointer;
-  transition: background 0.15s ease;
-}
-
-.button:hover:not(:disabled) {
-  background: var(--accent-strong);
-}
-
-.button:disabled {
-  background: var(--border-strong);
-  color: var(--text-muted);
-  cursor: not-allowed;
-}
