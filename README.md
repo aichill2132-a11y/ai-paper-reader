@@ -6,7 +6,7 @@ Upload an academic PDF and get a structured, page-cited summary generated entire
 
 ## Why I built this project
 
-As someone working in a neuroscience research lab, I regularly read and analyze academic papers. Extracting the research question, methods, participants, findings, and limitations can be time-consuming, especially when reviewing multiple papers or preparing a literature review.
+As someone working in a psychology research lab, I regularly read and analyze academic papers. Extracting the research question, methods, participants, findings, and limitations can be time-consuming, especially when reviewing multiple papers or preparing a literature review.
 
 My background at the intersection of neuroscience, psychology, and data science motivated me to explore how large language models could support this workflow. I wanted to build an assistant that could produce a structured overview in one step rather than requiring repeated prompts to a general-purpose chatbot.
 
