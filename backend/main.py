@@ -5,9 +5,10 @@ from fastapi import FastAPI, File, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 
 from config import OLLAMA_MODEL
+from grounded_answer import answer_question
 from ollama_client import OllamaError
 from pdf import PdfError, extract_document
-from schemas import SummaryRequest, SummaryResponse
+from schemas import AskRequest, AskResponse, SummaryRequest, SummaryResponse
 from summarizer import summarize_paper
 
 MAX_FILE_SIZE = 20 * 1024 * 1024  # 20 MB
@@ -16,7 +17,7 @@ logging.basicConfig(level=logging.INFO)
 
 app = FastAPI(
     title="AI Paper Reader API",
-    version="0.2.0",
+    version="0.3.0",
 )
 
 app.add_middleware(
@@ -92,3 +93,36 @@ async def summarize(request: SummaryRequest) -> SummaryResponse:
         chunk_count=chunk_count,
         summary=summary,
     )
+
+
+@app.post("/ask", response_model=AskResponse)
+async def ask(request: AskRequest) -> AskResponse:
+    """Answer one question about an already-uploaded paper.
+
+    Stateless by design: the client posts back the pages POST /upload returned,
+    exactly as POST /summary already works. The evidence pipeline decides
+    whether the paper can answer the question; the model is only asked to
+    phrase an answer, and only when it can.
+    """
+    question = request.question.strip()
+    if not question:
+        raise HTTPException(status_code=400, detail="A question is required.")
+
+    if not request.pages:
+        raise HTTPException(
+            status_code=400,
+            detail="No pages were supplied. Upload a paper first.",
+        )
+
+    if not any(page.text.strip() for page in request.pages):
+        raise HTTPException(
+            status_code=422,
+            detail="The supplied pages contain no extractable text to search.",
+        )
+
+    try:
+        return await answer_question(
+            question, request.filename, request.pages, request.top_k
+        )
+    except OllamaError as error:
+        raise HTTPException(status_code=error.status_code, detail=error.message)

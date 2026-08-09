@@ -56,5 +56,19 @@ OLLAMA_EMBED_MODEL = os.getenv("OLLAMA_EMBED_MODEL", "nomic-embed-text")
 # Chunks per /api/embed request. Larger batches are faster but use more memory.
 OLLAMA_EMBED_BATCH = _int_env("OLLAMA_EMBED_BATCH", 16)
 
+# Grounded answer generation (Ask the Paper). The generation model is the same
+# qwen3:8b used for summarisation; only the token budget differs, because an
+# answer is short and its context is a handful of passages.
+OLLAMA_NUM_PREDICT_ANSWER = _int_env("OLLAMA_NUM_PREDICT_ANSWER", 768)
+# How many passages may be sent to the model for one question.
+MAX_EVIDENCE_CHUNKS = _int_env("ASK_MAX_EVIDENCE_CHUNKS", 4)
+# How many ranked passages evidence selection may choose from. Wider than the
+# answerability window so that a strong direct-answer passage sitting just
+# outside it can still be cited.
+SELECTION_POOL_SIZE = _int_env("ASK_SELECTION_POOL", 12)
+# How many embedded papers to keep in memory. Bounded so a long-running server
+# cannot grow without limit.
+EMBEDDING_CACHE_SIZE = _int_env("ASK_EMBEDDING_CACHE_SIZE", 4)
+
 # Development diagnostics. Never logs paper text or long evidence excerpts.
 SUMMARY_DEBUG = _bool_env("SUMMARY_DEBUG", False)

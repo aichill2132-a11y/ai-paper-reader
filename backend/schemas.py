@@ -13,7 +13,7 @@ paper text) so the loss is visible in development.
 """
 
 import logging
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel, Field, field_validator
 
@@ -415,3 +415,57 @@ def validate_chunk(raw: Dict[str, Any], page_start: int, page_end: int) -> Chunk
     if not chunk.page_end:
         chunk.page_end = page_end
     return chunk
+
+
+# --------------------------------------------------------------------------- #
+# Ask the Paper
+# --------------------------------------------------------------------------- #
+
+
+class AskRequest(BaseModel):
+    """A question about one already-uploaded paper.
+
+    Deliberately the same shape as SummaryRequest plus a question: the client
+    holds the extracted pages returned by POST /upload and sends them back.
+    No server-side paper storage, no session, no database.
+    """
+
+    question: str = ""
+    filename: str = "paper.pdf"
+    pages: List[PageInput] = Field(default_factory=list)
+    top_k: int = Field(default=5, ge=1, le=20)
+
+
+class AnswerSource(BaseModel):
+    """One cited passage. Page and chunk id come from the parser, never the model."""
+
+    page: int = Field(ge=1)
+    chunk_id: str
+    evidence: str
+    section: str = ""
+
+
+class AskDiagnostics(BaseModel):
+    """How the answer was assembled, for measuring citation precision.
+
+    Retrieval scores are raw cosine statistics, not confidence percentages.
+    """
+
+    answerability_reason: str = ""
+    generation_called: bool = False
+    retrieved_chunk_ids: List[str] = Field(default_factory=list)
+    selected_chunk_ids: List[str] = Field(default_factory=list)
+    model_used_chunk_ids: List[str] = Field(default_factory=list)
+    cited_pages: List[int] = Field(default_factory=list)
+    retrieval_top_score: Optional[float] = None
+    retrieval_score_gap: Optional[float] = None
+    retrieval_mean_top_k: Optional[float] = None
+    embedding_cache_hit: bool = False
+
+
+class AskResponse(BaseModel):
+    status: str
+    answer: str
+    sources: List[AnswerSource] = Field(default_factory=list)
+    confidence_note: str = ""
+    diagnostics: AskDiagnostics = Field(default_factory=AskDiagnostics)
