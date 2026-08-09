@@ -1,0 +1,65 @@
+{
+  "paper": "A look at advanced learners’ use of mobile devices for English language study",
+  "questions": [
+    {
+      "question": "How many participants were in the study?",
+      "expected_answerable": true,
+      "expected_pages": [4]
+    },
+    {
+      "question": "What was the average age of the participants?",
+      "expected_answerable": true,
+      "expected_pages": [4]
+    },
+    {
+      "question": "How were the data collected?",
+      "expected_answerable": true,
+      "expected_pages": [4, 5]
+    },
+    {
+      "question": "How were the data analyzed?",
+      "expected_answerable": true,
+      "expected_pages": [4, 5]
+    },
+    {
+      "question": "What mobile apps or online tools did students use?",
+      "expected_answerable": true,
+      "expected_pages": [6, 7]
+    },
+    {
+      "question": "What were the main findings about mobile-device use?",
+      "expected_answerable": true,
+      "expected_pages": [6, 7, 8, 9]
+    },
+    {
+      "question": "What limitations did the authors identify?",
+      "expected_answerable": true,
+      "expected_pages": [9, 10]
+    },
+    {
+      "question": "What intervention improved participants' test scores?",
+      "expected_answerable": false,
+      "expected_pages": []
+    },
+    {
+      "question": "What was the control group size?",
+      "expected_answerable": false,
+      "expected_pages": []
+    },
+    {
+      "question": "Which randomized treatment condition performed best?",
+      "expected_answerable": false,
+      "expected_pages": []
+    },
+    {
+      "question": "What was the participants' mean IQ?",
+      "expected_answerable": false,
+      "expected_pages": []
+    },
+    {
+      "question": "Which physiological measure was recorded during the study?",
+      "expected_answerable": false,
+      "expected_pages": []
+    }
+  ]
+}

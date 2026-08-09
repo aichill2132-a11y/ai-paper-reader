@@ -13,3 +13,4 @@ python-dotenv==1.2.1      # loads backend/.env
 
 # --- testing ---
 pytest==8.4.2             # test runner; httpx above also backs fastapi.testclient
+pytest-asyncio==1.2.0     # async tests for the embedding layer

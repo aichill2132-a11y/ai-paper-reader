@@ -1,0 +1,69 @@
+{
+  "paper": "The language of (future) scientific communication",
+  "questions": [
+    {
+      "question": "What were the main research questions?",
+      "expected_answerable": true,
+      "expected_pages": [
+        1
+      ]
+    },
+    {
+      "question": "Which countries were included?",
+      "expected_answerable": true,
+      "expected_pages": [
+        2,
+        3,
+        4
+      ]
+    },
+    {
+      "question": "How were the publication data collected?",
+      "expected_answerable": true,
+      "expected_pages": [
+        2
+      ]
+    },
+    {
+      "question": "In which countries did English increase most strongly?",
+      "expected_answerable": true,
+      "expected_pages": [
+        3
+      ]
+    },
+    {
+      "question": "Which fields were associated with non-English publishing?",
+      "expected_answerable": true,
+      "expected_pages": [
+        3
+      ]
+    },
+    {
+      "question": "What caveat was given about Brazil?",
+      "expected_answerable": true,
+      "expected_pages": [
+        4
+      ]
+    },
+    {
+      "question": "How many human participants were recruited?",
+      "expected_answerable": false,
+      "expected_pages": []
+    },
+    {
+      "question": "What was the participants' average age?",
+      "expected_answerable": false,
+      "expected_pages": []
+    },
+    {
+      "question": "Which questionnaire did participants complete?",
+      "expected_answerable": false,
+      "expected_pages": []
+    },
+    {
+      "question": "What intervention improved test scores?",
+      "expected_answerable": false,
+      "expected_pages": []
+    }
+  ]
+}

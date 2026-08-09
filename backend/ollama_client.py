@@ -133,18 +133,23 @@ def _extract_json(raw: str) -> Tuple[Dict[str, Any], List[str]]:
     return parsed, cleanups
 
 
-async def _post(payload: Dict[str, Any]) -> httpx.Response:
+SLOW_SUMMARY_HINT = (
+    "Local summarisation of long papers can be slow; "
+    "try again or use a smaller model."
+)
+
+
+async def post_json(
+    path: str, payload: Dict[str, Any], timeout_hint: str = SLOW_SUMMARY_HINT
+) -> httpx.Response:
+    """POST to an Ollama endpoint, mapping transport failures onto OllamaError."""
     try:
         # trust_env=False: Ollama is a local service and must never be sent
         # through an HTTP(S)_PROXY picked up from the environment.
         async with httpx.AsyncClient(timeout=TIMEOUT, trust_env=False) as client:
-            return await client.post(f"{OLLAMA_BASE_URL}/api/generate", json=payload)
+            return await client.post(f"{OLLAMA_BASE_URL}{path}", json=payload)
     except httpx.TimeoutException:
-        raise OllamaError(
-            "Ollama timed out. Local summarisation of long papers can be slow; "
-            "try again or use a smaller model.",
-            504,
-        )
+        raise OllamaError("Ollama timed out. " + timeout_hint, 504)
     except httpx.ConnectError:
         raise OllamaError(
             f"Could not reach Ollama at {OLLAMA_BASE_URL}. "
@@ -157,6 +162,10 @@ async def _post(payload: Dict[str, Any]) -> httpx.Response:
         raise OllamaError(
             f"Unexpected error talking to Ollama: {type(exc).__name__}", 502
         )
+
+
+async def _post(payload: Dict[str, Any]) -> httpx.Response:
+    return await post_json("/api/generate", payload)
 
 
 def _error_text(response: httpx.Response) -> str:

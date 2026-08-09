@@ -1,0 +1,29 @@
+{
+  "paper": "A look at advanced learners' use of mobile devices for English language study",
+  "questions": [
+    { "question": "How many learners took part in the study?",
+      "expected_answerable": true,  "expected_pages": [3] },
+    { "question": "What was the participants' mean age?",
+      "expected_answerable": true,  "expected_pages": [3] },
+    { "question": "How were the interview data collected and analysed?",
+      "expected_answerable": true,  "expected_pages": [2] },
+    { "question": "Which applications did the learners use?",
+      "expected_answerable": true,  "expected_pages": [4] },
+    { "question": "What role did teachers play?",
+      "expected_answerable": true,  "expected_pages": [4] },
+    { "question": "How were participants recruited?",
+      "expected_answerable": true,  "expected_pages": [3] },
+    { "question": "What limitations did the authors identify?",
+      "expected_answerable": true,  "expected_pages": [5] },
+    { "question": "What was the participants' mean IQ?",
+      "expected_answerable": false, "expected_pages": [] },
+    { "question": "What was the average BMI of the sample?",
+      "expected_answerable": false, "expected_pages": [] },
+    { "question": "What was the participants' mean household income?",
+      "expected_answerable": false, "expected_pages": [] },
+    { "question": "What was the mean depression score?",
+      "expected_answerable": false, "expected_pages": [] },
+    { "question": "What intervention improved test scores?",
+      "expected_answerable": false, "expected_pages": [] }
+  ]
+}

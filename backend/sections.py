@@ -65,11 +65,56 @@ HEADING_PATTERNS: Tuple[Tuple[str, str], ...] = (
                     r"strengths and limitations|threats to validity"),
     ("conclusion", r"conclusions?|concluding remarks|implications( for practice)?"),
     ("references", r"references|bibliography|works cited|reference list"),
+    ("notes", r"notes?|endnotes?|footnotes?|author'?s? notes?|"
+              r"notes? on contributors?"),
     ("acknowledgements", r"acknowledge?ments?|funding|conflicts? of interest"),
 )
 
-# Sections that mark the end of the body text.
+# Sections that mark the end of the body text for summarisation purposes.
 TERMINAL_SECTIONS = {"references", "acknowledgements"}
+
+# A numbered note marker at the start of a line: "[1]", "1.", "(2)".
+NOTE_MARKER = re.compile(r"^\s*(?:\[\s*(\d{1,3})\s*\]|\(\s*(\d{1,3})\s*\)|(\d{1,3})[.)])\s+(?=\S)")
+
+# What a bibliography entry looks like: a surname followed by initials, or a
+# parenthesised year, or a journal volume/page run. Author notes after the
+# bibliography are ordinary prose and match none of these.
+CITATION_SHAPE = re.compile(
+    r"[A-Z][A-Za-z'’\-]+,\s*[A-Z]\."          # "Smith, J."
+    r"|\(\s*(?:19|20)\d{2}[a-z]?\s*\)"        # "(2018)"
+    r"|\b(?:19|20)\d{2}[a-z]?\.\s+[A-Z]"       # "2018. Title"
+    r"|\b\d+\s*\(\s*\d+\s*\)\s*[,:]\s*\d"  # "32(1): 5"
+    r"|\bdoi\b|\bhttps?://",
+    re.IGNORECASE,
+)
+
+# Prose that is doing real work rather than listing a source.
+SUBSTANTIVE_NOTE = re.compile(
+    r"\b(?:it should be noted|note that|we|our|the (?:study|sample|participants?"
+    r"|researcher|authors?)|this (?:study|paper|sample)|because|since|"
+    r"in order to|for convenience|the reason)\b",
+    re.IGNORECASE,
+)
+
+
+def is_substantive_note(line: str) -> bool:
+    """True for a numbered author note, false for a bibliography entry.
+
+    Papers often close with numbered endnotes that carry real methodological
+    content, printed after the reference list with no heading of their own.
+    Structurally they are a numbered marker followed by prose; a bibliography
+    entry is a numbered or unnumbered marker followed by a citation. The test
+    is the shape of what follows the marker, not its subject matter.
+    """
+    match = NOTE_MARKER.match(line)
+    if not match:
+        return False
+    body = line[match.end():].strip()
+    if len(body.split()) < 6:
+        return False
+    if CITATION_SHAPE.search(body):
+        return False
+    return bool(SUBSTANTIVE_NOTE.search(body))
 
 # List numbering / bullets that may precede a heading.
 _NUMBERING = re.compile(r"^\s*(?:[-*•]\s*)?(?:\d+(?:\.\d+)*\.?|[IVXivx]+\.)\s*")
@@ -221,7 +266,7 @@ def match_heading(text: str) -> Optional[str]:
     return None
 
 
-def _heading_on_line(line: str) -> Optional[Tuple[str, str]]:
+def heading_on_line(line: str) -> Optional[Tuple[str, str]]:
     """Detect a heading at the start of a line.
 
     Returns ``(canonical_name, remainder_of_line)``. A standalone heading has an
@@ -280,7 +325,20 @@ def parse_sections(
             if line.lower() in dropped or PAGE_NUMBER_LINE.match(line):
                 continue
 
-            found = _heading_on_line(line)
+            # A numbered author note after the bibliography opens a new
+            # section. Without this the note is swallowed by "references" and
+            # then discarded wholesale by evidence filtering.
+            if (
+                current is not None
+                and current.name == "references"
+                and is_substantive_note(line)
+            ):
+                flush()
+                current = Section(name="notes", heading=line, pages=[page_number])
+                buffer = [line]
+                continue
+
+            found = heading_on_line(line)
             if found:
                 name, remainder = found
                 flush()

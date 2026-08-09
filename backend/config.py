@@ -49,5 +49,12 @@ OLLAMA_TOP_P = _float_env("OLLAMA_TOP_P", 0.9)
 OLLAMA_NUM_PREDICT_MAP = _int_env("OLLAMA_NUM_PREDICT_MAP", 2048)
 OLLAMA_NUM_PREDICT_REDUCE = _int_env("OLLAMA_NUM_PREDICT_REDUCE", 3072)
 
+# Embeddings for retrieval. A dedicated embedding model is strongly preferred
+# over reusing the generation model: it is far smaller, much faster, and
+# produces vectors actually trained for semantic similarity.
+OLLAMA_EMBED_MODEL = os.getenv("OLLAMA_EMBED_MODEL", "nomic-embed-text")
+# Chunks per /api/embed request. Larger batches are faster but use more memory.
+OLLAMA_EMBED_BATCH = _int_env("OLLAMA_EMBED_BATCH", 16)
+
 # Development diagnostics. Never logs paper text or long evidence excerpts.
 SUMMARY_DEBUG = _bool_env("SUMMARY_DEBUG", False)

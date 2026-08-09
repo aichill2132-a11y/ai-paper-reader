@@ -1,17 +1,16 @@
 import logging
 from typing import Any, Dict
 
-import fitz  # PyMuPDF
 from fastapi import FastAPI, File, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 
 from config import OLLAMA_MODEL
 from ollama_client import OllamaError
+from pdf import PdfError, extract_document
 from schemas import SummaryRequest, SummaryResponse
 from summarizer import summarize_paper
 
 MAX_FILE_SIZE = 20 * 1024 * 1024  # 20 MB
-PREVIEW_LENGTH = 3000
 
 logging.basicConfig(level=logging.INFO)
 
@@ -62,45 +61,9 @@ async def upload_paper(file: UploadFile = File(...)) -> Dict[str, Any]:
 
     # Read the PDF straight from memory. Nothing is written to disk.
     try:
-        document = fitz.open(stream=contents, filetype="pdf")
-    except Exception:
-        raise HTTPException(
-            status_code=400,
-            detail="The file could not be opened as a valid PDF.",
-        )
-
-    try:
-        page_count = document.page_count
-        pages = [
-            {"page_number": number, "text": document[number - 1].get_text()}
-            for number in range(1, page_count + 1)
-        ]
-    except Exception:
-        raise HTTPException(
-            status_code=400,
-            detail="The PDF appears to be corrupted and could not be read.",
-        )
-    finally:
-        document.close()
-
-    full_text = "".join(page["text"] for page in pages)
-
-    if not full_text.strip():
-        raise HTTPException(
-            status_code=422,
-            detail=(
-                "No extractable text was found in this PDF. "
-                "It may be a scanned document that needs OCR."
-            ),
-        )
-
-    return {
-        "filename": filename,
-        "page_count": page_count,
-        "character_count": len(full_text),
-        "text_preview": full_text[:PREVIEW_LENGTH],
-        "pages": pages,
-    }
+        return extract_document(contents, filename)
+    except PdfError as error:
+        raise HTTPException(status_code=error.status_code, detail=error.message)
 
 
 @app.post("/summary", response_model=SummaryResponse)
