@@ -53,3 +53,19 @@ export async function generateSummary({ filename, pages }) {
 
   return response.json()
 }
+
+export async function askPaper({ question, filename, pages, topK = 5 }) {
+  const response = await fetch(`${API_BASE_URL}/ask`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ question, filename, pages, top_k: topK }),
+  })
+
+  if (!response.ok) {
+    throw new Error(
+      await readError(response, 'Could not answer that question. Please try again.'),
+    )
+  }
+
+  return response.json()
+}

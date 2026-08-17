@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
+import AskPaper from '../components/AskPaper'
 import StatusBadge from '../components/StatusBadge'
 import SummaryCard from '../components/SummaryCard'
 import UploadCard from '../components/UploadCard'
@@ -15,6 +16,11 @@ function Home() {
   const [summary, setSummary] = useState(null)
   const [summaryError, setSummaryError] = useState('')
   const [isSummarizing, setIsSummarizing] = useState(false)
+
+  // Ask state lives inside AskPaper. Keying that component on the uploaded
+  // paper means a new upload remounts it, so no question, answer or evidence
+  // can leak from the previous paper.
+  const [paperKey, setPaperKey] = useState(0)
 
   useEffect(() => {
     let cancelled = false
@@ -58,6 +64,7 @@ function Home() {
     try {
       const data = await uploadPaper(file)
       setResult(data)
+      setPaperKey((current) => current + 1)
     } catch (err) {
       setError(err.message || 'Something went wrong while uploading.')
     } finally {
@@ -91,8 +98,8 @@ function Home() {
         <div className="page__heading">
           <h1 className="page__title">AI Paper Reader</h1>
           <p className="page__subtitle">
-            Upload a research paper, extract its text, and summarise it with a
-            local model.
+            Upload a research paper, summarise it, and ask questions answered
+            only from its own text.
           </p>
         </div>
         <StatusBadge status={backendStatus} />
@@ -185,6 +192,11 @@ function Home() {
             )}
 
             {summary && <SummaryCard data={summary} />}
+
+            <AskPaper
+              key={paperKey}
+              paper={{ filename: result.filename, pages: result.pages }}
+            />
 
             <div className="preview">
               <div className="preview__header">
