@@ -4,7 +4,7 @@ from typing import Any, Dict
 from fastapi import FastAPI, File, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 
-from config import OLLAMA_MODEL
+from config import FRONTEND_ORIGIN, OLLAMA_MODEL
 from grounded_answer import answer_question
 from ollama_client import OllamaError
 from pdf import PdfError, extract_document
@@ -17,12 +17,12 @@ logging.basicConfig(level=logging.INFO)
 
 app = FastAPI(
     title="AI Paper Reader API",
-    version="0.3.0",
+    version="1.0.0",
 )
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173"],
+    allow_origins=[FRONTEND_ORIGIN],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

@@ -1,4 +1,6 @@
-const API_BASE_URL = 'http://127.0.0.1:8000'
+// Override at build time with VITE_API_BASE_URL (see .env.example).
+const API_BASE_URL =
+  import.meta.env.VITE_API_BASE_URL ?? 'http://127.0.0.1:8000'
 
 async function readError(response, fallback) {
   try {

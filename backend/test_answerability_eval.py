@@ -22,7 +22,7 @@ from answerability_eval import (
 )
 from conftest import embedded_language_corpus  # noqa: F401
 
-EVALUATIONS = "evaluations/publication_language.json"
+EVALUATIONS = "evaluations/real_papers/publication_language.json"
 
 
 def report(status, pages=(), top=0.5, gap=0.1):

@@ -32,6 +32,9 @@ def _bool_env(name: str, default: bool) -> bool:
 
 
 OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434").rstrip("/")
+
+# Origin permitted by CORS. Defaults to the Vite dev server.
+FRONTEND_ORIGIN = os.getenv("FRONTEND_ORIGIN", "http://localhost:5173").rstrip("/")
 OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "qwen3:8b")
 
 # Local inference is slow, so we fail fast on connect but wait a long time to read.

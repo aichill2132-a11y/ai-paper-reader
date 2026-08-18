@@ -711,7 +711,7 @@ async def test_mobile_devices_dataset_fixes_both_reported_failures(hashing_ollam
     from answerability_eval import compute_metrics, evaluate, load_evaluation
     from conftest import embedded_mobile_corpus
 
-    evaluation = load_evaluation(Path("evaluations/mobile_devices.json"))
+    evaluation = load_evaluation(Path("evaluations/synthetic_fixtures/mobile_devices.json"))
     rows = await evaluate(evaluation.questions, await embedded_mobile_corpus())
     by_question = {row.question: row for row in rows}
 
