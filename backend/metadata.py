@@ -25,6 +25,7 @@ TITLE DETECTION
 
 import math
 import re
+import unicodedata
 from typing import Dict, List, Sequence, Tuple
 
 from pydantic import BaseModel, Field
@@ -66,8 +67,18 @@ _AFFILIATION = re.compile(
     r"\b(universit|department|dept\.|school of|college|faculty|institute|"
     r"academy|hospital|clinic|laborator|research (centre|center|group|unit)|"
     r"centre for|center for|nhs|trust|foundation|corresponding author|"
-    r"correspondence|address for correspondence|\binc\.|\bltd\b)\b",
+    r"correspondence|address for correspondence)\b",
     re.IGNORECASE,
+)
+
+# Company suffixes are matched case-sensitively AND only after a capitalised
+# organisation name, because the bare tokens collide with ordinary scientific
+# acronyms. "Acme Ltd" is an affiliation; "LTD" in "Engineering a memory with
+# LTD and LTP" is long-term depression, and a case-insensitive \bltd\b was
+# deleting titles like that one before they could be considered.
+_COMPANY_SUFFIX = re.compile(
+    r"\b[A-Z][\w&.'’-]*(?:\s+[A-Z][\w&.'’-]*)*"
+    r"\s+(?:Ltd|Inc|LLC|L\.L\.C|GmbH|PLC|Pty|N\.V|B\.V|S\.A|S\.p\.A)\b\.?"
 )
 
 _KEYWORDS = re.compile(r"^(key ?words?|index terms|jel classification)\b", re.IGNORECASE)
@@ -83,8 +94,70 @@ _NAME = re.compile(
     r"(\s+[A-Z][A-Za-z'’\-]+)+$"        # surname
 )
 _AUTHOR_SEPARATOR = re.compile(r"\s*(?:,|;|\band\b|&)\s*", re.IGNORECASE)
+
+# _NAME is an ASCII pattern, so any author carrying a diacritic failed to parse
+# as a name: the byline line was then treated as title text and the first
+# author was absorbed into the title. Folding to ASCII before the test keeps
+# the pattern simple and works for any Latin-script name, not one paper's.
+# NFKD separates most diacritics from their base letter; a handful of letters
+# are atomic and have no combining form, so they get a short table.
+_ATOMIC_LETTERS = {
+    ord("\u00d8"): "O", ord("\u00f8"): "o",      # Oslash
+    ord("\u0141"): "L", ord("\u0142"): "l",      # Lstroke  (Polish)
+    ord("\u0110"): "D", ord("\u0111"): "d",      # Dstroke
+    ord("\u00d0"): "D", ord("\u00f0"): "d",      # Eth
+    ord("\u00de"): "Th", ord("\u00fe"): "th",    # Thorn
+    ord("\u00df"): "ss",                          # sharp s
+    ord("\u00c6"): "Ae", ord("\u00e6"): "ae",
+    ord("\u0152"): "Oe", ord("\u0153"): "oe",
+    ord("\u0130"): "I", ord("\u0131"): "i",
+}
+
+
+def _ascii_fold(text: str) -> str:
+    """Strip diacritics for matching only; the original spelling is kept."""
+    folded = unicodedata.normalize("NFKD", text.translate(_ATOMIC_LETTERS))
+    return "".join(ch for ch in folded if not unicodedata.combining(ch))
+
+
+def _is_name(text: str) -> bool:
+    """True when the text parses as a personal name, accents and all."""
+    return bool(_NAME.match(_ascii_fold(text)))
+
+
 # Superscript affiliation markers attached to names.
 _AUTHOR_MARKERS = re.compile(r"[\d\*†‡§¶\^]+")
+# The same markers at the START of a line. A byline that wrapped mid-list
+# leaves the previous author's superscript stranded at the head of the next
+# line ("Ada Fielding" / "1,6*, Bruno Reyes"), which is how a wrapped byline is
+# told apart from a separate line that merely looks name-like.
+_LEADING_MARKER = re.compile(r"^[\d\*†‡§¶\^]")
+
+# Institution stems _AFFILIATION cannot see. Its alternatives close with \b, so
+# a prefix such as "universit" never matches "University" or "Université", and
+# "institute" never matches the French/German "Institut". Correcting that regex
+# is NOT the fix: it is also what is_page_furniture uses, so real titles
+# ("University students' wellbeing", "Laboratory automation in ...") would be
+# classified as furniture and deleted. The corrected stems therefore live here,
+# where they only end the byline scan.
+_AFFILIATION_STEM = re.compile(
+    r"\b(universit|institut|laborator|polytechn|akadem|klinik)\w*", re.IGNORECASE
+)
+
+# Affiliation lists number the institution, gluing the marker to the front of
+# its name ("4Institut de Psychologie"). A byline does the opposite: markers
+# follow a name. A digit immediately before a capital is therefore an
+# affiliation list, not a byline, and needs no vocabulary to recognise.
+_GLUED_MARKER = re.compile(r"\d[A-Z]")
+
+
+def looks_like_affiliation(line: str) -> bool:
+    """True for an institution or address line, which ends the byline."""
+    return bool(
+        _AFFILIATION.search(line)
+        or _AFFILIATION_STEM.search(line)
+        or _GLUED_MARKER.search(line)
+    )
 
 
 def is_page_furniture(line: str) -> bool:
@@ -101,6 +174,8 @@ def is_page_furniture(line: str) -> bool:
         return True
     if _AFFILIATION.search(line):
         return True
+    if _COMPANY_SUFFIX.search(line):
+        return True
     return False
 
 
@@ -116,7 +191,7 @@ def looks_like_authors(line: str) -> bool:
     if not parts or len(parts) > 20:
         return False
 
-    matched = sum(1 for part in parts if _NAME.match(part))
+    matched = sum(1 for part in parts if _is_name(part))
     if len(parts) == 1:
         # A lone name has to be short. Without this, a title in title case
         # ("Attention Is All You Need") parses as a person's name.
@@ -213,10 +288,14 @@ def _title_blocks(lines: Sequence[str]) -> Tuple[List[List[str]], int]:
 
     for line in lines:
         if looks_like_authors(line):
-            blocks_before_authors = min(blocks_before_authors, len(blocks))
+            # Flush first, then count. Counting before the flush left the title
+            # sitting in `current` and recorded 0 blocks before the byline,
+            # which _pick_title's old "or blocks" fallback silently papered
+            # over by widening the search to the whole page.
             if current:
                 blocks.append(current)
                 current = []
+            blocks_before_authors = min(blocks_before_authors, len(blocks))
         elif looks_like_title_text(line):
             current.append(line)
         elif current:
@@ -237,7 +316,13 @@ def _pick_title(
     title is not. Returns the candidates and the block they came from, so the
     caller knows where the byline can start.
     """
-    considered = blocks[:blocks_before_authors] or blocks
+    considered = blocks[:blocks_before_authors]
+    if not considered:
+        # Every block sits after the byline, so the title region is gone - a
+        # furniture filter removed it, or the page is not laid out as expected.
+        # Falling back to all blocks used to promote whichever page-1 body
+        # paragraph was longest, which is worse than admitting the failure.
+        return [], []
     best = max(considered, key=lambda block: sum(len(line) for line in block))
 
     candidates = [" ".join(best)]
@@ -245,6 +330,40 @@ def _pick_title(
         # Offer the opening line alone, in case the block swallowed a subtitle.
         candidates.append(best[0])
     return candidates, best
+
+
+def split_author_names(line: str) -> List[str]:
+    """Split one byline into individual names, dropping affiliation markers.
+
+    Reuses the same pieces looks_like_authors already uses to decide that a
+    line IS a byline, so a line the parser accepted is split the same way it
+    was recognised. "Dorota Kobylinska1, Karol Lewczuk1 & Till Kastendieck2"
+    becomes three names.
+    """
+    stripped = _AUTHOR_MARKERS.sub("", line).strip().rstrip(",;")
+    names = []
+    for part in _AUTHOR_SEPARATOR.split(stripped):
+        part = part.strip()
+        if part and _is_name(part) and part not in names:
+            names.append(part)
+    return names
+
+
+def _join_wrapped_byline(candidates: Sequence[str]) -> List[str]:
+    """Re-join byline lines that PDF extraction split at a superscript.
+
+    A wrapped byline breaks after a name, stranding that name's affiliation
+    markers at the head of the next line. Without this the lone first author
+    has no separator, so the multi-name preference below drops it and the paper
+    loses its first author.
+    """
+    joined: List[str] = []
+    for line in candidates:
+        if joined and _LEADING_MARKER.match(line):
+            joined[-1] = joined[-1] + " " + line
+        else:
+            joined.append(line)
+    return joined
 
 
 def _pick_authors(lines: Sequence[str], after_index: int) -> Tuple[List[str], bool]:
@@ -255,14 +374,19 @@ def _pick_authors(lines: Sequence[str], after_index: int) -> Tuple[List[str], bo
     """
     candidates: List[str] = []
     for line in lines[after_index + 1 :]:
-        if _AFFILIATION.search(line) or _EMAIL.search(line):
+        if looks_like_affiliation(line) or _EMAIL.search(line):
             break
         if looks_like_authors(line) and line not in candidates:
             candidates.append(line)
 
     follow_title = bool(candidates)
     if not candidates:
-        candidates = [line for line in lines if looks_like_authors(line)]
+        candidates = [
+            line for line in lines
+            if looks_like_authors(line) and not looks_like_affiliation(line)
+        ]
+
+    candidates = _join_wrapped_byline(candidates)
 
     # A real byline usually lists several names, so prefer those: it stops a
     # two-word organisation name ("Google Brain") masquerading as an author.
@@ -285,6 +409,10 @@ def extract_title_and_authors(
         )
 
     title_candidates, title_block = _pick_title(blocks, blocks_before_authors)
+    if not title_candidates:
+        return TitleAuthors(
+            author_candidates=[line for line in lines if looks_like_authors(line)][:3]
+        )
     title = title_candidates[0]
 
     # The byline can only start after the title block's last line.

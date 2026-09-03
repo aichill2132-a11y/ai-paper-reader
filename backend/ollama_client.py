@@ -56,6 +56,17 @@ class OllamaError(Exception):
         self.status_code = status_code
 
 
+class MalformedJSONError(OllamaError):
+    """The model replied, but its output could not be parsed as a JSON object.
+
+    Deliberately narrow: this means the CONTENT was unusable, not that Ollama
+    was unreachable. Callers that can proceed without one response - the MAP
+    loop, which gathers evidence chunk by chunk - may skip it. Connection
+    failures, timeouts and a missing model stay plain OllamaError so they keep
+    aborting the request, because retrying or skipping them is pointless.
+    """
+
+
 def inline_schema_refs(schema: Dict[str, Any]) -> Dict[str, Any]:
     """Resolve $ref/$defs into a self-contained schema.
 
@@ -115,7 +126,7 @@ def _extract_json(raw: str) -> Tuple[Dict[str, Any], List[str]]:
         start = text.find("{")
         end = text.rfind("}")
         if start == -1 or end <= start:
-            raise OllamaError(
+            raise MalformedJSONError(
                 "The model did not return JSON. Try generating the summary again.",
                 502,
             )
@@ -123,15 +134,21 @@ def _extract_json(raw: str) -> Tuple[Dict[str, Any], List[str]]:
         try:
             parsed = json.loads(text[start : end + 1])
         except json.JSONDecodeError:
-            raise OllamaError(
+            raise MalformedJSONError(
                 "The model returned malformed JSON. Try generating the summary again.",
                 502,
             )
 
     if not isinstance(parsed, dict):
-        raise OllamaError("The model returned JSON that was not an object.", 502)
+        raise MalformedJSONError(
+            "The model returned JSON that was not an object.", 502
+        )
     return parsed, cleanups
 
+
+# How much of an unparseable response to log. Enough to see where a truncated
+# object stopped; never the whole response.
+MALFORMED_TAIL_CHARS = 200
 
 SLOW_SUMMARY_HINT = (
     "Local summarisation of long papers can be slow; "
@@ -289,7 +306,20 @@ async def generate_json(
             502,
         )
 
-    parsed, cleanups = _extract_json(raw)
+    try:
+        parsed, cleanups = _extract_json(raw)
+    except MalformedJSONError:
+        # The success log below never runs on this path, which used to leave a
+        # failure completely unobservable. The tail is logged rather than the
+        # whole response because truncation is the leading hypothesis and the
+        # break shows up at the end.
+        logger.warning(
+            "%s: malformed structured output (response_chars=%d, tail=%r)",
+            label,
+            len(raw),
+            raw[-MALFORMED_TAIL_CHARS:],
+        )
+        raise
 
     debug(
         logger,

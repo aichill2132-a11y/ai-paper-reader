@@ -61,8 +61,17 @@ HEADING_PATTERNS: Tuple[Tuple[str, str], ...] = (
         r"discussion|discussion and conclusions?|findings and discussion|"
         r"discussion of findings",
     ),
-    ("limitations", r"limitations|study limitations|limitations of the study|"
-                    r"strengths and limitations|threats to validity"),
+    # Papers routinely combine limitations with what follows from them
+    # ("Limitations and future directions"). match_heading uses re.fullmatch,
+    # so each accepted form is spelled out rather than matching any heading
+    # that merely contains the word: "Limitations of previous research" is a
+    # literature-review heading, not this section.
+    ("limitations", r"(?:study |potential |methodological )?limitations"
+                    r"(?: and (?:future directions?|future research|"
+                    r"further research|implications|recommendations))?|"
+                    r"limitations of the study|"
+                    r"strengths and limitations|limitations and strengths|"
+                    r"threats to validity"),
     ("conclusion", r"conclusions?|concluding remarks|implications( for practice)?"),
     ("references", r"references|bibliography|works cited|reference list"),
     ("notes", r"notes?|endnotes?|footnotes?|author'?s? notes?|"
@@ -277,8 +286,14 @@ def heading_on_line(line: str) -> Optional[Tuple[str, str]]:
     if not stripped:
         return None
 
-    # Standalone heading line.
-    if len(stripped) <= MAX_HEADING_CHARS and not _SENTENCE_END.search(stripped):
+    # Standalone heading line. Trailing punctuation is not disqualifying:
+    # normalise_heading already strips a trailing colon or full stop, and
+    # match_heading is a fullmatch against a closed vocabulary, so prose cannot
+    # reach here. Testing _SENTENCE_END first used to reject a heading printed
+    # as "Limitations and future directions." - the run-in branch below then
+    # rejected it too, for having no prose after the stop, so a real heading
+    # fell between the two cases and was lost.
+    if len(stripped) <= MAX_HEADING_CHARS:
         name = match_heading(stripped)
         if name:
             return name, ""
@@ -390,12 +405,20 @@ def is_limitation(sentence: str, in_limitations_section: bool) -> bool:
 
     has_limitation_cue = bool(LIMITATION_CUES.search(text))
 
-    # A recommendation for future work is not a limitation.
-    if RECOMMENDATION_CUES.search(text) and not has_limitation_cue:
+    # A result is not a limitation anywhere, including inside an explicit
+    # limitations section, where authors often restate what they found.
+    if FINDING_CUES.search(text) and not has_limitation_cue:
         return False
 
-    # Neither is a result that happens to sit in the limitations paragraph.
-    if FINDING_CUES.search(text) and not has_limitation_cue:
+    # Outside an explicit section a bare recommendation is not a limitation:
+    # nothing frames it as one. Under an author's own "Limitations and future
+    # directions" heading the framing is already there, and that heading is the
+    # strongest attribution signal the parser has - stronger than any cue list.
+    if (
+        not in_limitations_section
+        and RECOMMENDATION_CUES.search(text)
+        and not has_limitation_cue
+    ):
         return False
 
     if in_limitations_section:

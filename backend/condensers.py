@@ -12,6 +12,36 @@ from sections import is_finding, split_sentences
 
 MAX_CHARS = 600
 
+# Sentence-level protocol detail. A methods summary should say what kind of
+# study was run, not restate the bench protocol, so sentences that are mostly
+# instrument settings are skipped when a design sentence is available.
+_PROTOCOL_DETAIL = re.compile(
+    r"\b(?:\d+(?:\.\d+)?\s*(?:mm|cm|nm|\u00b5m|um|ml|\u00b5l|ul|mg|\u00b5g|g/l|mol|mM|nM|"
+    r"rpm|psi|kV|mA|Hz|\u00b0C|min/ml|ml/min)\b"
+    r"|flow rate|column (?:dimension|temperature|oven)|particle size"
+    r"|wavelength|gradient elution|mobile phase|injection volume"
+    r"|centrifug\w+ at|catalogue number|cat\.? no|lot number"
+    r"|model\s+[A-Z0-9-]{3,}|version\s+\d)",
+    re.IGNORECASE,
+)
+
+# The paper's own statement of purpose, used to build a research question when
+# the model is unavailable.
+_AIM_STATEMENT = re.compile(
+    r"\b(?:aims?|aimed|objectives?|purpose|research question)\b"
+    r"|\b(?:this|the present|the current|our)\s+(?:\w+\s+){0,2}"
+    r"(?:stud(?:y|ies)|paper|article|analysis|research|work)\b[^.]{0,120}?"
+    r"\bto\s+(?:determin|examin|investigat|explor|assess|establish|identif|"
+    r"compar|evaluat|test|measur|describ)\w*"
+    r"|\bwe\b[^.]{0,80}?\bto\s+(?:determin|examin|investigat|explor|assess|"
+    r"establish|identif|compar|evaluat|test|measur|describ)\w*",
+    re.IGNORECASE,
+)
+
+NO_RESEARCH_QUESTION = (
+    "The research question was not explicitly identifiable in the paper."
+)
+
 _PEOPLE = (
     r"participants?|subjects?|respondents?|interviewees?|informants?|"
     r"volunteers?|patients?|nurses?|midwives|doctors?|physicians?|clinicians?|"
@@ -89,10 +119,17 @@ def clean_extract(text: str, max_sentences: int = 2) -> str:
 
 
 def condense_research_question(text: str) -> str:
-    """Prefer an actual question, then an aim statement, then the opening."""
+    """Return the paper's aim, or say it could not be identified.
+
+    Only a fallback: the model is asked to rewrite the aim as a question. This
+    path runs when the model is unavailable, so it returns the aim verbatim
+    rather than attempting a rewrite it cannot do reliably. It never falls back
+    to the opening sentences, because a Results or Discussion sentence is worse
+    than admitting the aim was not found.
+    """
     sentences = split_sentences(text)
     if not sentences:
-        return ""
+        return NO_RESEARCH_QUESTION
 
     questions = [item for item in sentences if item.rstrip().endswith("?")]
     if questions:
@@ -102,7 +139,11 @@ def condense_research_question(text: str) -> str:
     if cued:
         return _trim(" ".join(cued[:2]))
 
-    return clean_extract(text, 2)
+    aims = [item for item in sentences if _AIM_STATEMENT.search(item)]
+    if aims:
+        return _trim(aims[0])
+
+    return NO_RESEARCH_QUESTION
 
 
 def condense_participants(text: str) -> str:
@@ -146,19 +187,25 @@ def condense_methods(text: str) -> str:
     if not sentences:
         return ""
 
-    collection = next((item for item in sentences if _COLLECTION.search(item)), "")
+    # Prefer design sentences over bench protocol. Protocol sentences are only
+    # used if nothing else is available, so a chemistry paper still gets an
+    # answer rather than an empty methods field.
+    design = [item for item in sentences if not _PROTOCOL_DETAIL.search(item)]
+    pool = design or sentences
+
+    collection = next((item for item in pool if _COLLECTION.search(item)), "")
     analysis = next(
-        (item for item in sentences if _ANALYSIS.search(item) and item != collection),
+        (item for item in pool if _ANALYSIS.search(item) and item != collection),
         "",
     )
 
     parts = [part for part in (collection, analysis) if part]
     if not parts:
-        return clean_extract(text, 2)
+        return _trim(" ".join(pool[:2]))
     return _trim(" ".join(parts))
 
 
-def condense_findings(text: str, limit: int = 5) -> List[str]:
+def condense_findings(text: str, limit: int = 6) -> List[str]:
     """Keep only empirical results, observed patterns and reported themes.
 
     Recommendations, implications and future-work statements are excluded; see
@@ -197,7 +244,12 @@ TEXT_CONDENSERS = {
 }
 
 # field name -> deterministic condenser producing a list
+# condense_limitations is deliberately NOT registered here. Recovery runs the
+# condensers in this table whenever a field came back empty, which would force
+# a limitation into author_stated_limitations every time the parser found
+# limitation-shaped text - exactly the over-classification the field is meant
+# to avoid. An empty list is a valid answer, so the field has no condenser.
+# The function is kept for callers that want the deterministic extraction.
 LIST_CONDENSERS = {
     "key_findings": condense_findings,
-    "limitations": condense_limitations,
 }

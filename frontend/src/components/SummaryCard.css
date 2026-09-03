@@ -134,6 +134,14 @@
   color: var(--text-muted);
 }
 
+/* Marks a section as model inference rather than something the paper said. */
+.summary-section__caveat {
+  margin: 0 0 0.5rem;
+  font-size: 0.75rem;
+  font-style: italic;
+  color: var(--text-muted);
+}
+
 .summary__footer {
   padding: 1.15rem 1.25rem;
   border-top: 1px solid var(--border);

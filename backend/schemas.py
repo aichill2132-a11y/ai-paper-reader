@@ -49,8 +49,56 @@ SOURCE_PAGE_FIELDS = (
     "research_question",
     "methods",
     "key_findings",
-    "limitations",
+    "author_stated_limitations",
 )
+
+
+# Keys REDUCE must return. Requiring the KEY is not requiring content: each
+# value may still be NOT_STATED, [NOT_STATED] or an empty list under that
+# field's own contract. Without this every field has a default, Pydantic emits
+# no "required" array at all, and the model may legally return a partial object
+# that degrades silently into "missing" once the defaults are filled in.
+# Upper bound on key_findings, applied to the REDUCE schema only. There is no
+# matching lower bound on purpose: a paper with two genuine findings must be
+# allowed to return two rather than being pushed into inventing a third.
+MAX_KEY_FINDINGS = 6
+
+REDUCE_REQUIRED_FIELDS = (
+    "title",
+    "authors",
+    "research_question",
+    "background",
+    "methods",
+    "participants_or_data",
+    "key_findings",
+    "author_stated_limitations",
+    "model_identified_considerations",
+    "plain_english_summary",
+    "confidence_notes",
+    "source_pages",
+)
+
+
+def reduce_response_schema() -> Dict[str, Any]:
+    """PaperSummary's JSON schema with the REDUCE keys marked required.
+
+    PaperSummary keeps its permissive defaults: they are what lets a partial or
+    failed model response still validate everywhere else in the application.
+    Only the copy handed to the model carries "required", so the output
+    contract tightens without changing validation semantics anywhere else.
+    """
+    schema = PaperSummary.model_json_schema()
+    properties = schema.get("properties", {})
+    schema["required"] = [
+        name for name in REDUCE_REQUIRED_FIELDS if name in properties
+    ]
+    # Constrain generation rather than truncating afterwards: the model decides
+    # which findings matter while it still has the evidence in front of it,
+    # instead of the first six surviving an arbitrary slice.
+    findings = properties.get("key_findings")
+    if isinstance(findings, dict):
+        findings["maxItems"] = MAX_KEY_FINDINGS
+    return schema
 
 
 def is_missing(text: Any) -> bool:
@@ -289,7 +337,7 @@ class SourcePages(BaseModel):
     research_question: List[int] = Field(default_factory=list)
     methods: List[int] = Field(default_factory=list)
     key_findings: List[int] = Field(default_factory=list)
-    limitations: List[int] = Field(default_factory=list)
+    author_stated_limitations: List[int] = Field(default_factory=list)
 
     @field_validator(*SOURCE_PAGE_FIELDS, mode="before")
     @classmethod
@@ -311,7 +359,14 @@ class SummaryFields(BaseModel):
     methods: str = NOT_STATED
     participants_or_data: str = NOT_STATED
     key_findings: List[str] = Field(default_factory=lambda: [NOT_STATED])
-    limitations: List[str] = Field(default_factory=lambda: [NOT_STATED])
+    # Limitations the paper itself states. Only these carry page provenance.
+    # Optional: many papers state none, so the default is an empty list rather
+    # than the NOT_STATED sentinel, and an empty list is not a missing field.
+    author_stated_limitations: List[str] = Field(default_factory=list)
+    # Study-design concerns the model raises that the authors did not state.
+    # Optional and explicitly labelled as inference, so a reader is never left
+    # guessing whether the paper said this or the model did.
+    model_identified_considerations: List[str] = Field(default_factory=list)
 
     @field_validator(
         "title",
@@ -325,10 +380,24 @@ class SummaryFields(BaseModel):
     def _coerce_text(cls, value: Any) -> str:
         return _as_text(value)
 
-    @field_validator("authors", "key_findings", "limitations", mode="before")
+    @field_validator("authors", "key_findings", mode="before")
     @classmethod
     def _coerce_list(cls, value: Any) -> List[str]:
         return _as_text_list(value)
+
+    @field_validator(
+        "model_identified_considerations",
+        "author_stated_limitations",
+        mode="before",
+    )
+    @classmethod
+    def _coerce_considerations(cls, value: Any) -> List[str]:
+        # Optional: an empty list is a valid answer, so these must not fall back
+        # to the "not stated" sentinel the way a required field does.
+        if value is None:
+            return []
+        items = _as_text_list(value, "")
+        return [item for item in items if item and not is_missing(item)]
 
 
 class CondensedSummary(SummaryFields):
@@ -369,7 +438,9 @@ class PaperSummary(SummaryFields):
         ):
             if is_missing(getattr(self, name)):
                 missing.append(name)
-        for name in ("authors", "key_findings", "limitations"):
+        # author_stated_limitations is optional and is not listed here: an
+        # empty list means "none stated", which is an answer, not a gap.
+        for name in ("authors", "key_findings"):
             if all(is_missing(item) for item in getattr(self, name)):
                 missing.append(name)
         return missing

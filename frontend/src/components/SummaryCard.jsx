@@ -12,13 +12,18 @@ function isMissing(value) {
 function SourceBadges({ pages }) {
   if (!pages || pages.length === 0) return null
 
+  // Each page stays a separate integer in the data and a separate badge in the
+  // markup, but the separators are real text. Without them the numbers run
+  // together as "Pages146" wherever the badge spacing does not apply - copied
+  // text, screen readers, narrow layouts.
   const label = pages.length === 1 ? 'Page' : 'Pages'
   return (
-    <span className="source-pages" title={`${label} ${pages.join(', ')}`}>
-      <span className="source-pages__label">{label}</span>
-      {pages.map((page) => (
-        <span key={page} className="source-pages__badge">
-          {page}
+    <span className="source-pages">
+      <span className="source-pages__label">{label}</span>{' '}
+      {pages.map((page, index) => (
+        <span key={page}>
+          <span className="source-pages__badge">{page}</span>
+          {index < pages.length - 1 ? <span aria-hidden="true">, </span> : null}
         </span>
       ))}
     </span>
@@ -47,8 +52,14 @@ function TextSection({ title, value, pages }) {
   )
 }
 
-function ListSection({ title, items, pages }) {
+function ListSection({ title, items, pages, emptyText }) {
   if (isMissing(items)) {
+    // An optional list that came back empty is an answer, not a gap, so it
+    // gets its own wording and no page badges - citing pages for something
+    // the section says is absent would be misleading.
+    if (emptyText) {
+      return <TextSection title={title} value={emptyText} pages={null} />
+    }
     return <TextSection title={title} value={NOT_STATED} pages={pages} />
   }
 
@@ -111,10 +122,23 @@ function SummaryCard({ data }) {
           pages={sourcePages.key_findings}
         />
         <ListSection
-          title="Limitations"
-          items={summary.limitations}
-          pages={sourcePages.limitations}
+          title="Author-stated limitations"
+          items={summary.author_stated_limitations}
+          pages={sourcePages.author_stated_limitations}
+          emptyText="No explicit author-stated limitations were identified."
         />
+        {!isMissing(summary.model_identified_considerations) && (
+          <Section title="Model-identified considerations">
+            <p className="summary-section__caveat">
+              Raised by the model, not stated by the authors.
+            </p>
+            <ul className="summary-section__list">
+              {summary.model_identified_considerations.map((item, index) => (
+                <li key={`${index}-${item.slice(0, 24)}`}>{item}</li>
+              ))}
+            </ul>
+          </Section>
+        )}
       </div>
 
       <footer className="summary__footer">
